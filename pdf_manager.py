@@ -51,22 +51,41 @@ class PDFManagerApp:
         ttk.Entry(input_frame, textvariable=self.slice_input_var, width=50).pack(side='left', fill='x', expand=True)
         ttk.Button(input_frame, text="Browse", command=self.browse_slice_input).pack(side='left', padx=(5, 0))
         
-        # Page range
-        ttk.Label(slice_frame, text="Page Range:").pack(pady=(20, 5))
+        # Page ranges section
+        ttk.Label(slice_frame, text="Page Ranges (one per line, e.g., '1-5' or '10-15'):").pack(pady=(20, 5))
         
-        range_frame = ttk.Frame(slice_frame)
-        range_frame.pack(padx=20, pady=5)
+        # Text widget for multiple ranges
+        ranges_frame = ttk.Frame(slice_frame)
+        ranges_frame.pack(fill='both', expand=True, padx=20, pady=5)
         
-        ttk.Label(range_frame, text="From:").pack(side='left')
+        ranges_scrollbar = ttk.Scrollbar(ranges_frame)
+        ranges_scrollbar.pack(side='right', fill='y')
+        
+        self.slice_ranges_text = tk.Text(ranges_frame, height=6, width=50, yscrollcommand=ranges_scrollbar.set)
+        self.slice_ranges_text.pack(side='left', fill='both', expand=True)
+        ranges_scrollbar.config(command=self.slice_ranges_text.yview)
+        
+        # Buttons for range management
+        range_buttons_frame = ttk.Frame(slice_frame)
+        range_buttons_frame.pack(pady=5)
+        
+        ttk.Button(range_buttons_frame, text="Add Current Range", command=self.add_current_range).pack(side='left', padx=5)
+        ttk.Button(range_buttons_frame, text="Clear Ranges", command=self.clear_ranges).pack(side='left', padx=5)
+        
+        # Single page range input (for quick add)
+        quick_range_frame = ttk.Frame(slice_frame)
+        quick_range_frame.pack(padx=20, pady=5)
+        
+        ttk.Label(quick_range_frame, text="Quick Add - From:").pack(side='left')
         self.slice_start_var = tk.StringVar(value="1")
-        ttk.Entry(range_frame, textvariable=self.slice_start_var, width=10).pack(side='left', padx=5)
+        ttk.Entry(quick_range_frame, textvariable=self.slice_start_var, width=10).pack(side='left', padx=5)
         
-        ttk.Label(range_frame, text="To:").pack(side='left', padx=(20, 0))
+        ttk.Label(quick_range_frame, text="To:").pack(side='left', padx=(10, 0))
         self.slice_end_var = tk.StringVar(value="1")
-        ttk.Entry(range_frame, textvariable=self.slice_end_var, width=10).pack(side='left', padx=5)
+        ttk.Entry(quick_range_frame, textvariable=self.slice_end_var, width=10).pack(side='left', padx=5)
         
         # Output path
-        ttk.Label(slice_frame, text="Output Location:").pack(pady=(20, 5))
+        ttk.Label(slice_frame, text="Output Location:").pack(pady=(10, 5))
         
         output_frame = ttk.Frame(slice_frame)
         output_frame.pack(fill='x', padx=20, pady=5)
@@ -77,7 +96,7 @@ class PDFManagerApp:
         
         # Slice button (larger and centered)
         slice_button = ttk.Button(slice_frame, text="✂️ SLICE PDF", command=self.slice_pdf)
-        slice_button.pack(pady=30, ipadx=20, ipady=10)
+        slice_button.pack(pady=20, ipadx=20, ipady=10)
         
         # Status
         self.slice_status = ttk.Label(slice_frame, text="", foreground="blue")
@@ -174,6 +193,35 @@ class PDFManagerApp:
         self.pptx_status.pack(pady=5)
         
     # Slice PDF methods
+    def add_current_range(self):
+        """Add the current page range to the ranges text widget"""
+        try:
+            start = int(self.slice_start_var.get())
+            end = int(self.slice_end_var.get())
+            
+            if start < 1 or end < start:
+                messagebox.showerror("Error", "Invalid page range")
+                return
+            
+            # Add range to text widget
+            current_text = self.slice_ranges_text.get("1.0", tk.END).strip()
+            if current_text:
+                self.slice_ranges_text.insert(tk.END, f"\n{start}-{end}")
+            else:
+                self.slice_ranges_text.insert(tk.END, f"{start}-{end}")
+            
+            # Increment for next range (optional convenience)
+            self.slice_start_var.set(str(end + 1))
+            self.slice_end_var.set(str(end + 1))
+            
+        except ValueError:
+            messagebox.showerror("Error", "Please enter valid page numbers")
+    
+    def clear_ranges(self):
+        """Clear all page ranges"""
+        self.slice_ranges_text.delete("1.0", tk.END)
+        self.slice_status.config(text="Ranges cleared", foreground="blue")
+    
     def browse_slice_input(self):
         filename = filedialog.askopenfilename(
             title="Select PDF file",
@@ -214,34 +262,81 @@ class PDFManagerApp:
         if not output_file:
             messagebox.showerror("Error", "Please select an output file location")
             return
+        
+        # Get all ranges from the text widget
+        ranges_text = self.slice_ranges_text.get("1.0", tk.END).strip()
+        
+        if not ranges_text:
+            messagebox.showerror("Error", "Please add at least one page range")
+            return
             
         try:
-            start_page = int(self.slice_start_var.get()) - 1  # Convert to 0-indexed
-            end_page = int(self.slice_end_var.get()) - 1
-            
-            if start_page < 0 or end_page < start_page:
-                messagebox.showerror("Error", "Invalid page range")
-                return
-                
             reader = PdfReader(input_file)
-            
-            if end_page >= len(reader.pages):
-                messagebox.showerror("Error", f"End page exceeds total pages ({len(reader.pages)})")
-                return
-                
+            total_pages = len(reader.pages)
             writer = PdfWriter()
             
-            for page_num in range(start_page, end_page + 1):
-                writer.add_page(reader.pages[page_num])
+            # Parse and process each range
+            ranges = []
+            for line in ranges_text.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
                 
+                # Parse range (e.g., "1-5" or "10-15")
+                if '-' in line:
+                    parts = line.split('-')
+                    if len(parts) != 2:
+                        messagebox.showerror("Error", f"Invalid range format: {line}\nUse format: start-end (e.g., 1-5)")
+                        return
+                    
+                    start_page = int(parts[0].strip()) - 1  # Convert to 0-indexed
+                    end_page = int(parts[1].strip()) - 1
+                    
+                    if start_page < 0 or end_page < start_page:
+                        messagebox.showerror("Error", f"Invalid page range: {line}")
+                        return
+                    
+                    if end_page >= total_pages:
+                        messagebox.showerror("Error", f"Range {line} exceeds total pages ({total_pages})")
+                        return
+                    
+                    ranges.append((start_page, end_page))
+                else:
+                    # Single page
+                    page_num = int(line.strip()) - 1
+                    if page_num < 0 or page_num >= total_pages:
+                        messagebox.showerror("Error", f"Page {line} is out of range (1-{total_pages})")
+                        return
+                    ranges.append((page_num, page_num))
+            
+            if not ranges:
+                messagebox.showerror("Error", "No valid page ranges found")
+                return
+            
+            # Add pages from all ranges to the writer
+            total_pages_added = 0
+            for start_page, end_page in ranges:
+                for page_num in range(start_page, end_page + 1):
+                    writer.add_page(reader.pages[page_num])
+                    total_pages_added += 1
+            
+            # Write the output file
             with open(output_file, 'wb') as output:
                 writer.write(output)
-                
-            self.slice_status.config(text=f"Success! Sliced pages {start_page + 1}-{end_page + 1}", foreground="green")
-            messagebox.showinfo("Success", f"PDF sliced successfully!\nSaved to: {output_file}")
             
-        except ValueError:
-            messagebox.showerror("Error", "Please enter valid page numbers")
+            # Create summary message
+            ranges_summary = ", ".join([f"{s+1}-{e+1}" if s != e else f"{s+1}" for s, e in ranges])
+            self.slice_status.config(
+                text=f"Success! Extracted {total_pages_added} pages from ranges: {ranges_summary}", 
+                foreground="green"
+            )
+            messagebox.showinfo(
+                "Success", 
+                f"PDF sliced successfully!\n\nExtracted pages: {ranges_summary}\nTotal pages: {total_pages_added}\nSaved to: {output_file}"
+            )
+            
+        except ValueError as e:
+            messagebox.showerror("Error", f"Invalid page number format: {str(e)}")
         except Exception as e:
             self.slice_status.config(text="Error occurred", foreground="red")
             messagebox.showerror("Error", f"Failed to slice PDF: {str(e)}")

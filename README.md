@@ -20,7 +20,9 @@ Extract specific page ranges from PDF files with ease. Perfect for extracting ch
 
 - Select any PDF file
 - Automatically detect total page count
-- Choose custom page ranges (e.g., pages 5-10)
+- **Add multiple page ranges** (e.g., 1-5, 10-15, 20-25)
+- Extract non-contiguous sections and merge them into one file
+- Quick add feature for fast range entry
 - Smart file browser remembers your last location
 
 ### 📄 **Merge PDFs**
@@ -148,17 +150,19 @@ python pdf_manager.py
 1. Open the **"Slice PDF"** tab
 2. Click **Browse** to select your PDF file
 3. The app automatically detects total pages
-4. Enter your desired page range:
-   - **From:** Starting page (e.g., 1)
-   - **To:** Ending page (e.g., 10)
-5. Click **Browse** next to Output Location
-6. Name your output file
-7. Click **✂️ SLICE PDF**
+4. **Add page ranges** in two ways:
+   - **Quick Add:** Enter From/To values and click "Add Current Range"
+   - **Manual Entry:** Type ranges directly (one per line, e.g., "1-5" or "10")
+5. Add multiple ranges to extract non-contiguous sections
+6. Click **Browse** next to Output Location
+7. Name your output file
+8. Click **✂️ SLICE PDF**
 
 **Example Use Cases:**
-- Extract a single chapter from a textbook
-- Save specific pages from a large document
-- Create sample PDFs from full versions
+- Extract multiple chapters: pages 1-10, 20-30, 50-60
+- Remove unwanted sections (extract everything except certain pages)
+- Combine introduction and conclusion: pages 1-5, 95-100
+- Extract specific pages: 1, 5, 10, 15 (enter as separate ranges)
 
 #### 2️⃣ Merging PDFs
 
